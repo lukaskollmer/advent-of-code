@@ -1,4 +1,4 @@
-# advent of code 2018
+# advent of code
 
 > OCaml solutions for Advent of Code 2018
 
