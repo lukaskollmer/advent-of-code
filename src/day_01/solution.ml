@@ -1,15 +1,12 @@
 #use "topfind" ;;
 #require "extlib" ;;
 
-let read_file filename =
-  let chan = open_in filename in
-  Std.input_list chan
 
+let input = Std.input_list (open_in "input.txt") |> List.map int_of_string
 
-let inputs = read_file "input.txt" |> List.map int_of_string
 
 (* part 1 *)
-let _ = inputs |> List.fold_left (+) 0 |> Printf.sprintf "part 1: %i" |> print_endline
+let _ = input |> List.fold_left (+) 0 |> Printf.sprintf "part 1: %i" |> print_endline
 
 
 (* part 2 *)
@@ -44,11 +41,11 @@ Performance:
 - using a tree: ~5s
 - using a list: ~250s
 *)
-let rec part2 freq freq_history= function
-  | [] -> part2 freq freq_history inputs
-  | v::inputs ->
+let rec part2 freq freq_history = function
+  | [] -> part2 freq freq_history input
+  | v::input ->
     let freq = freq + v in
     if bt_contains freq freq_history then freq
-    else part2 freq (bt_insert freq freq_history) inputs
+    else part2 freq (bt_insert freq freq_history) input
 
-let _ = part2 0 Leaf inputs |> Printf.sprintf "part 2: %i" |> print_endline
+let _ = part2 0 Leaf input |> Printf.sprintf "part 2: %i" |> print_endline
