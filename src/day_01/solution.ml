@@ -2,7 +2,7 @@
 #require "extlib" ;;
 
 
-let input = Std.input_list (open_in "input.txt") |> List.map int_of_string
+let input = open_in "input.txt" |> Std.input_list |> List.map int_of_string
 
 
 (* part 1 *)
