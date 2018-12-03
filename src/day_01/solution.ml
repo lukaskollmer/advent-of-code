@@ -38,7 +38,7 @@ A: part2 is called ~142k times, each time with a new element in `freq_history`
    and every time we check whether it contains the current freq,
    which means, according to my calculations (bear in mind that i suck at math),
    that the list version needs to perform at least `1 + 2 + ... + 142k` comparisons,
-   while the tree version need to perform just about `log 1 + 2 + ... + 142k` comparisons (which is a lot less)
+   while the tree version need to perform just about `log (1 + 2 + ... + 142k)` comparisons (which is a lot less)
 
 Performance:
 - using a tree: ~5s
