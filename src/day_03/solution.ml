@@ -16,7 +16,6 @@ let range a b =
   let rec imp l i =
     if i < a then l else imp (i::l) (i-1) in
   imp [] (b-1)
-;;
 
 
 let is_digit c = c >= '0' && c <= '9'
@@ -34,8 +33,7 @@ let parse_ints str =
   |> List.filter (fun l -> l <> [])
   |> List.map (fun digits ->
     digits |> List.map (fun c -> (int_of_char c) - (int_of_char '0'))
-           |> List.fold_left (fun acc x -> acc * 10 + x) 0
-  )
+           |> List.fold_left (fun acc x -> acc * 10 + x) 0)
 
 let parse_claim str =
   match parse_ints str with
@@ -44,12 +42,11 @@ let parse_claim str =
   | _ -> failwith "should never reach here"
 
 
-
+(* returns width, height tuple *)
 let get_claims_size claims = claims
   |> List.fold_left
-    (fun (w, h) (_, (x, y), (w', h')) ->
-      (max w (x + w'), max h (y + h'))
-    ) (0, 0)
+    (fun (w, h) (_, (x, y), (w', h')) -> (max w (x + w'), max h (y + h')))
+    (0, 0)
 
 
 let rec process_claims arr = function
@@ -92,9 +89,7 @@ let _ =
 
   let (id, _, _) = claims
     |> first_where (fun (id, (x, y), (width, height)) ->
-      range x (x+width) |> all
-        (fun x -> range y (y+height) |> all (fun y -> field_equals 1 (x, y) data)
-      )
+      range x (x+width) |> all (fun x -> range y (y+height) |> all (fun y -> field_equals 1 (x, y) data))
     )
   in
 
