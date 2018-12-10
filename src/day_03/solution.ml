@@ -44,40 +44,34 @@ let parse_claim str =
   | _ -> failwith "should never reach here"
 
 
-let claims = input |> List.map parse_claim
 
-
-
-let (width, height) = claims
+let get_claims_size claims = claims
   |> List.fold_left
     (fun (w, h) (_, (x, y), (w', h')) ->
       (max w (x + w'), max h (y + h'))
     ) (0, 0)
 
-let data = Array.init (width + 1) (fun _ -> Array.make (height + 1) 0)
 
-
-let rec fill_data = function
+let rec process_claims arr = function
   | [] -> ()
   | x::xs ->
     let (_, (x, y), (width, height)) = x in
     for x' = x to x + width - 1 do
       for y' = y to y + height - 1 do
-        data.(x').(y') <- data.(x').(y') + 1
+        arr.(x').(y') <- arr.(x').(y') + 1
       done;
     done;
-    fill_data xs
-
-
-let print_data _ =
-  data |> Array.iter (fun column ->
-    column |> Array.iter (fun x -> Printf.printf "%i, " x) ;
-    print_newline ()
-  )
+    process_claims arr xs
 
 
 let _ =
-  fill_data claims ;
+  (* prepare input *)
+  let claims = input |> List.map parse_claim in
+  
+  let (width, height) = get_claims_size claims in
+  let data = Array.init (width + 1) (fun _ -> Array.make (height + 1) 0) in
+
+  process_claims data claims ;
   
   (* part 1 *)
   data
