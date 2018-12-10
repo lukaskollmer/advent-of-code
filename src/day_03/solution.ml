@@ -12,6 +12,12 @@ let get_chars s =
   in
   imp [] (String.length s - 1)
 
+let range a b =
+  let rec imp l i =
+    if i < a then l else imp (i::l) (i-1) in
+  imp [] (b-1)
+;;
+
 
 let is_digit c = c >= '0' && c <= '9'
 
@@ -39,7 +45,6 @@ let parse_claim str =
 
 
 let claims = input |> List.map parse_claim
-
 
 
 
@@ -73,6 +78,7 @@ let print_data _ =
 
 let _ =
   fill_data claims ;
+  
   (* part 1 *)
   data
     |> Array.map (fun x -> x |> Array.to_list)
@@ -80,4 +86,23 @@ let _ =
     |> List.flatten
     |> List.filter (fun x -> x > 1)
     |> List.length
-    |> Printf.printf "part 1: %i" ;
+    |> Printf.printf "part 1: %i\n" ;
+  
+  (* part 2 *)
+  let rec first_where f = function
+    | [] -> failwith "first_where"
+    | x::xs -> if f x then x else first_where f xs
+  in
+  let rec all f = function [] -> true | x::xs -> if f x then all f xs else false in
+  let field_equals value (x, y) arr = arr.(x).(y) = value in
+
+  let (id, _, _) = claims
+    |> first_where (fun (id, (x, y), (width, height)) ->
+      range x (x+width) |> all
+        (fun x -> range y (y+height) |> all (fun y -> field_equals 1 (x, y) data)
+      )
+    )
+  in
+
+  Printf.printf "part 2: %i\n" id ;
+
