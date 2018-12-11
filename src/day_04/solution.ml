@@ -90,21 +90,33 @@ let process_input input =
     )
 
 
+(* a binary tree hash table thing *)
 
 
 type ('key, 'value) tree = Leaf | Node of ('key * 'value) * ('key, 'value) tree * ('key, 'value) tree
 
-
-let rec tree_update_f key f = function
+let rec tree_update_f_opt key f = function
   | Leaf -> Node ((key, f None), Leaf, Leaf)
   | Node ((key', value) as pair, lhs, rhs) ->
     if key = key' then
       Node ((key, f (Some value)), lhs, rhs)
     else if Hashtbl.hash key < Hashtbl.hash key' then
+      Node (pair, tree_update_f_opt key f lhs, rhs)
+    else
+      Node (pair, lhs, tree_update_f_opt key f rhs)
+
+let rec tree_update_f key f = function
+  | Leaf -> failwith "key doesn't exist"
+  | Node ((key', value) as pair, lhs, rhs) ->
+    if key = key' then
+      Node ((key, f value), lhs, rhs)
+    else if Hashtbl.hash key < Hashtbl.hash key' then
       Node (pair, tree_update_f key f lhs, rhs)
     else
       Node (pair, lhs, tree_update_f key f rhs)
 
+
+let tree_insert key value tree = tree_update_f_opt key (fun _ -> value) tree
 
 let tree_to_list tree =
   let rec imp acc = function
@@ -126,39 +138,49 @@ let count_where f l =
   in
   imp 0 l
 
-let count_of v l = l |> count_where (fun x -> x = v)
+let count_of v l =
+  l |> count_where (fun x -> x = v)
+
+let sort_by_count l =
+  l |> List.sort (fun x x' -> (count_of x' l) - (count_of x l))
+
+
+(* implementation *)
 
 let _ =
+  Printexc.record_backtrace true ;
   let records = process_input input in
 
+
   (* part 1 *)
-  let start_time = ref 0 in
-  let guards = records |> List.fold_left
+  let minutes_by_guard = records |> List.fold_left
     (fun acc {date; event; guard} ->
       match event with
-      | BeginShift -> acc
-      | FallAsleep -> start_time := date.minute; acc
-      | WakeUp ->
-        let time_asleep = date.minute - !start_time in
-        tree_update_f guard (fun x -> match x with None -> time_asleep | Some x -> x + time_asleep) acc
+      | BeginShift -> tree_update_f_opt guard (function None -> [] | Some x -> x) acc
+      | FallAsleep -> tree_update_f guard (fun mins -> date.minute :: mins) acc
+      | WakeUp -> tree_update_f guard (function x::xs -> (range x date.minute) @ xs | _ -> failwith "should never reach here") acc
     ) Leaf
   in
 
-  let (id, total_sleep) = guards |> tree_to_list |> List.sort (fun (_, time) (_, time') -> time' - time) |> List.hd in
+  minutes_by_guard
+  |> tree_to_list
+  |> List.sort (fun (_, mins) (_, mins') -> List.length mins' - List.length mins)
+  |> List.hd
+  |> (fun (guard, mins) ->
+    let best_minute = mins |> List.sort (fun min min' -> (count_of min' mins) - (count_of min mins)) |> List.hd in
+    Printf.printf "part1: %i * %i = %i\n" guard best_minute (guard * best_minute) ;
+  ) ;
 
-  let minutes = records
-    |> List.filter (fun {date; event; guard} -> guard = id)
-    |> List.fold_left (fun acc {date; event; guard} ->
-        match event with
-        | BeginShift -> acc
-        | FallAsleep -> date.minute :: acc
-        | WakeUp ->
-          let (start_time, xs) = (List.hd acc, List.tl acc) in
-          (range start_time date.minute) @ xs
-          
-      ) []
-  in
-  let best_minute = minutes |> List.sort (fun min min' -> (count_of min' minutes ) - (count_of min minutes)) |> List.hd in
-
-  Printf.printf "part 1: id=%i, minute=%i, answer=%i" id best_minute (id * best_minute) ;
-  
+  (* part 2 *)
+  minutes_by_guard
+  |> tree_to_list
+  |> List.filter (fun (_, mins) -> mins <> [])
+  |> List.map
+    (fun (guard, mins) ->
+      let mins = sort_by_count mins in
+      let min = List.hd mins in
+      (guard, min, count_of min mins)
+    )
+  |> List.sort (fun (_, _, count) (_, _, count') -> count' - count)
+  |> List.hd
+  |> (fun (guard, min, count) -> Printf.printf "part2: guard: %i, min: %i, count: %i, result: %i" guard min count (guard * min))
