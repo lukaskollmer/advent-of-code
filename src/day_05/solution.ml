@@ -22,33 +22,41 @@ let string_of_chars chars =
 let input = read_lines "input.txt" |> List.hd
 
 
-type case = Lower | Upper
-
-
-let char_get_case = function
-  | c when c >= 'a' && c <= 'z' -> Lower
-  | c when c >= 'A' && c <= 'Z' -> Upper
-  | _ -> failwith "char_get_case"
-
-
-
 let same_of_different_case a b =
   if a = b then false else
   let (a, b) = if a < b then a, b else b, a in
-  a + 32 = b
+  (int_of_char a) + 32 = (int_of_char b)
+
+let rangei a b =
+  let rec imp l i =
+    if i < a then l else imp (i::l) (i-1)
+  in
+  imp [] b
 
 
 let () =
-  (* part 1 *)
-  let rec imp acc flag = function
+  let input_chars = input |> get_chars in
+  
+  let rec perform_reactions acc flag = function
     | [] ->
       let contents = List.rev acc in
-      if not flag then contents else imp [] false contents
-    | x::[] -> imp (x::acc) flag []
+      if not flag then contents else perform_reactions [] false contents
+    | x :: [] -> perform_reactions (x :: acc) flag []
     | curr :: (next :: rest) ->
       if same_of_different_case curr next then
-        imp acc true rest
+        perform_reactions acc true rest
       else
-        imp (curr :: acc) flag (next::rest)
+        perform_reactions (curr :: acc) flag (next :: rest)
   in
-  Printf.printf "[part 1] #units: %i" (input |> get_chars |> List.map int_of_char |> imp [] false |> List.length) ;
+
+  (* part 1 *)
+  Printf.printf "[part 1] #units: %i\n" (input_chars |> perform_reactions [] false |> List.length) ;
+
+  (* part 2 *)
+  rangei (int_of_char 'a') (int_of_char 'z')
+    |> List.map char_of_int
+    |> List.map (fun c -> input_chars |> List.filter (fun c' -> Char.lowercase_ascii c' <> c))
+    |> List.map (fun x -> perform_reactions [] false x)
+    |> List.sort (fun a b -> (List.length a) - (List.length b))
+    |> List.hd |> List.length
+    |> Printf.printf "[part 2] #units: %i" ;
