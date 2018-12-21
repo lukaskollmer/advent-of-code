@@ -44,9 +44,7 @@ let () =
     | [] ->
       let contents = List.rev acc in
       if not flag then contents else imp [] false contents
-    | x::[] ->
-      let contents = List.rev (x::acc) in
-      if not flag then contents else imp [] false contents
+    | x::[] -> imp (x::acc) flag []
     | curr :: (next :: rest) ->
       if same_of_different_case curr next then
         imp acc true rest
