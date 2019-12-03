@@ -126,9 +126,9 @@ let () =
   (* Part 2 *)
   intersections
   |> List.filter_map (fun ((x, y, d) as p) ->
-    match Tree.first_where (fun ((x', y', d') as p') -> if x = x' && y = y' then Eq else Tree.compare_hash p p') w2 with
+    match Tree.first_where (fun ((x', y', _) as p') -> if x = x' && y = y' then Eq else Tree.compare_hash p p') w2 with
     | None -> None
-    | Some (x', y', d') -> Some (d + d') )
+    | Some (_, _, d') -> Some (d + d') )
   |> List.sort Int.compare
   |> List.hd
   |> Printf.printf "Part2: %i\n" ;
