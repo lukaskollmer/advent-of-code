@@ -29,7 +29,7 @@ module Tree = struct
   let compare_hash x y =
     cmp (hash x) (hash y)
 
-  let compare ((x, y) as p: (int*int)) ((x', y') as p': (int*int)) =
+  let compare (x, y as p) (x', y' as p') =
     if x = x' && y = y' then Eq
     else cmp (manhattan p) (manhattan p')
 
@@ -58,7 +58,6 @@ module Tree = struct
     | Leaf -> []
     | Node (v, l, r) -> to_list l @ (v :: to_list r)
 end
-
 
 
 
