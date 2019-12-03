@@ -1,6 +1,6 @@
-# advent of code
+# Advent of Code
 
-> OCaml solutions for Advent of Code 2018
+> OCaml solutions for Advent of Code
 
 
 ## License
