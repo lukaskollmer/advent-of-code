@@ -27,17 +27,6 @@ let opcode_from_int = function
   | 99 -> Halt
   | x -> invalid_arg (Printf.sprintf "%i" x)
 
-let opcode_to_int = function
-  | Add -> 1
-  | Mul -> 2
-  | In  -> 3
-  | Out -> 4
-  | Jnz -> 5
-  | Jz -> 6
-  | Lt -> 7
-  | Eq -> 8
-  | Halt -> 99
-
 
 (* decode an encoded instruction *)
 let decode (i: int): (opcode * param_mode list) =
@@ -47,7 +36,6 @@ let decode (i: int): (opcode * param_mode list) =
     | n -> get_pms ((param_mode_from_int (x mod 10)) :: acc) (x / 10) (n-1)
   in
   opcode, (get_pms [] (i / 100) 3)
-
 
 
 let run program input =
@@ -89,7 +77,6 @@ let run program input =
       eval (pc+4)
   in
   eval 0
-
 
 
 let () =
