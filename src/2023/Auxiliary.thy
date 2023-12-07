@@ -16,6 +16,15 @@ notation (ASCII)
   pipe  (infixl "|>" 55)
 
 
+lemma [simp]: "x |> f = f x"
+  unfolding pipe_def
+  by simp
+
+
+
+fun count_where :: "('a \<Rightarrow> bool) \<Rightarrow> 'a list \<Rightarrow> nat" where
+  "count_where f = length o (filter f)"
+
 
 fun split_list_aux :: "'a list \<Rightarrow> 'a \<Rightarrow> 'a list list \<Rightarrow> 'a list \<Rightarrow> 'a list list" where
   "split_list_aux [] _ acc acc' = acc @ [acc']"
@@ -26,9 +35,9 @@ fun split_list_aux :: "'a list \<Rightarrow> 'a \<Rightarrow> 'a list list \<Rig
 
 
 
-fun split_list :: "'a list \<Rightarrow> 'a \<Rightarrow> 'a list list" where
-  "split_list [] _ = []"
-| "split_list xs a = split_list_aux xs a [] []"
+fun split_list :: "'a \<Rightarrow> 'a list \<Rightarrow> 'a list list" where
+  "split_list _ [] = []"
+| "split_list a xs = split_list_aux xs a [] []"
 
 (*
 fun split_list' :: "'a list \<Rightarrow> 'a \<Rightarrow> 'a list list" where
@@ -41,8 +50,8 @@ fun split_list' :: "'a list \<Rightarrow> 'a \<Rightarrow> 'a list list" where
 
 
 
-value "split_list ''Hello World'' (CHR '' '')"
-value "split_list ''a'' (CHR ''a'') "
+value "split_list (CHR '' '') ''Hello World''"
+value "split_list (CHR ''a'') ''a'' "
 
 
 
@@ -53,7 +62,7 @@ fun list_join :: "'a list list \<Rightarrow> 'a \<Rightarrow> 'a list" where
 
 
 
-lemma "\<lbrakk> s = split_list xs a \<rbrakk> \<Longrightarrow> list_join s a = xs"
+lemma "\<lbrakk> s = split_list a xs \<rbrakk> \<Longrightarrow> list_join s a = xs"
   oops
 
 
@@ -112,7 +121,7 @@ fun trim_string :: "string \<Rightarrow> string" where
 
 
 fun split_lines :: "string \<Rightarrow> string list" where
-  "split_lines input = split_list input (char_of_nat 10)"
+  "split_lines input = split_list (char_of_nat 10) input"
 
 
 value "split_lines ''Card 1: 41 48 83 86 17 | 83 86  6 31 17  9 48 53
@@ -157,6 +166,11 @@ next
     sorry
 qed
 
+
+
+
+(* fun mk_range_excl :: "nat \<Rightarrow> nat \<Rightarrow> nat list" where *)
+  (* "mk_range_excl " *)
 
 
 end
