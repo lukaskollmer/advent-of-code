@@ -23,16 +23,13 @@ let rec calc_diffs = function
 type direction = Fwd | Bckwd
 
 
-let calc_next dir l =
-  let rec imp l =
-    if List.for_all (fun n -> n = 0) l then 0
-    else
-      let next = imp (calc_diffs l) in
-      match dir with
-        | Fwd ->  last l + next
-        | Bckwd -> List.hd l - next
-  in
-  imp l
+let rec calc_next dir l =
+  if List.for_all (fun n -> n = 0) l then 0
+  else
+    let next = calc_next dir (calc_diffs l) in
+    match dir with
+      | Fwd ->  last l + next
+      | Bckwd -> List.hd l - next
 ;;
 
 
@@ -51,4 +48,4 @@ let pt02 = run (calc_next Bckwd) ;;
 let () =
   let input = read_lines "input.txt" in
   input |> pt01 |> Printf.printf "Pt01: %i\n" ;
-  input |> pt02 |> Printf.printf "Pt01: %i\n" ;
+  input |> pt02 |> Printf.printf "Pt02: %i\n" ;
