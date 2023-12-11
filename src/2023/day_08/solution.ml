@@ -16,65 +16,66 @@ let get_chars s =
   imp [] (String.length s - 1)
 ;;
 
+let get_opt = function Some x -> x | None -> failwith "None" ;;
+
+let last_char s = s.[String.length s - 1] ;;
 
 
+let rec gcd u v =
+  if v <> 0 then gcd v (u mod v)
+  else abs u
+;;
 
-type direction = L | R
+let lcm m n =
+  match m, n with
+  | 0, _ | _, 0 -> 0
+  | m, n -> abs (m * n) / (gcd m n)
+;;
 
-let parse_direction = function 'L' -> L | 'R' -> R ;;
+type dir = Left | Right ;;
 
 
-type node = String
-
-module NodeMap = Map.Make(String)
-
-type node_map = (node * node) NodeMap.t
+module NodeMap = Map.Make(String) ;;
 
 
 let parse_input input =
-  let directions = input |> List.hd |> get_chars |> List.map parse_direction in
-  let rest = input |> List.tl |> List.tl in
-  let map = rest |> List.fold_left (fun acc line ->
-    let name = String.sub line 0 3 in
-    let l = String.sub line 7 3 in
-    let r = String.sub line 12 3 in
-    NodeMap.add name (l, r) acc
+  let dirs = input |> List.hd |> get_chars |> List.map (function 'L' -> Left | 'R' -> Right) in
+  let nodes = input |> List.tl |> List.tl |> List.map (fun l ->
+    String.sub l 0 3, String.sub l 7 3, String.sub l 12 3
+  ) in
+  let nodes' = nodes |> List.fold_left (fun map (n, l, r) ->
+    NodeMap.add n (l, r) map
   ) NodeMap.empty in
-  (directions, map)
+  (dirs, nodes')
 ;;
 
 
-
-
-let opt_get = function Some x -> x | None -> failwith "None" ;;
-
-
-let walk map directions =
-  let rec imp dst cur directions =
-    if cur = dst then []
+let run dirs nodes is_initial is_final =
+  let dirs = dirs |> List.to_seq |> Seq.cycle in
+  let rec imp dirs d node =
+    if is_final node then d
     else
-      let (d, directions) = directions |> Seq.uncons |> opt_get in
-      let (l, r) = NodeMap.find cur map in
-      match d with
-        | L -> l::(imp dst l directions)
-        | R -> r::(imp dst r directions)
+      let dir, dirs = dirs |> Seq.uncons |> get_opt in
+      match dir with
+        | Left -> imp dirs (d+1) (fst (NodeMap.find node nodes))
+        | Right -> imp dirs (d+1) (snd (NodeMap.find node nodes))
   in
-  imp "ZZZ" "AAA" (directions |> List.to_seq |> Seq.cycle)
+  (* imp initial dirs 0 *)
+  let initial = nodes |> NodeMap.to_list |> List.filter_map (fun (k, _) -> if is_initial k then Some k else None) in
+  initial |> List.map (imp dirs 0) |> List.fold_left lcm 1
 ;;
-
 
 let pt01 input =
-  let (directions, map) = parse_input input in
-  let steps = walk map directions in
-  List.length steps
+  let dirs, nodes = parse_input input in
+  run dirs nodes ((=) "AAA") (fun s -> last_char s = 'Z')
 ;;
 
-
-
-let pt02 input = 12 ;;
-
+let pt02 input =
+  let dirs, nodes = parse_input input in
+  run dirs nodes (fun s -> last_char s = 'A') (fun s -> last_char s = 'Z')
+;;
 
 let () =
   let input = read_lines "input.txt" in
-  input |> pt01 |> Printf.printf "Pt01: %i\n" ;
-  input |> pt02 |> Printf.printf "Pt01: %i\n" ;
+  input |> pt01 |> Printf.printf "Pt01: %d\n" ;
+  input |> pt02 |> Printf.printf "Pt02: %d\n" ;
