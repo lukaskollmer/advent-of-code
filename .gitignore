@@ -1,2 +1,14 @@
+# VS Code
 .vscode/
+
+# Isabelle
 *.thy~
+
+# OCaml
+*.cmo
+*.cma
+*.cmi
+*.a
+*.o
+*.cmx
+*.out
