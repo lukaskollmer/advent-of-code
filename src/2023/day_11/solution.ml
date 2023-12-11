@@ -64,10 +64,10 @@ let shortest_path (x, y) (x', y') =
 ;;
 
 let run factor input =
-  let galaxies, w, h = parse_input input in
-  let galaxies = galaxies |> enlargen factor w h in
-  let pairs = galaxies |> List.fold_left (fun pairs g1 ->
-    galaxies |> List.fold_left (fun pairs g2 ->
+  let univ, w, h = parse_input input in
+  let univ = univ |> enlargen factor w h in
+  let pairs = univ |> List.fold_left (fun pairs g1 ->
+    univ |> List.fold_left (fun pairs g2 ->
       if g1 = g2 || PosPairSet.mem (g1,g2) pairs || PosPairSet.mem (g2,g1) pairs
       then pairs
       else PosPairSet.add (g1,g2) pairs
