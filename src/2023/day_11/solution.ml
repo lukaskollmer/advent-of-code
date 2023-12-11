@@ -30,12 +30,12 @@ let flat_mapi f l =
   in imp 0 [] l
 ;;
 
-let mk_range_excl a b =
+let set_of_range a b =
   let rec imp acc = function
-    | x when x = b -> List.rev acc
-    | x -> imp (x::acc) (x+1)
+    | x when x = b -> acc
+    | x -> imp (IntSet.add x acc) (x+1)
   in
-  imp [] a
+  imp IntSet.empty a
 ;;
 
 
@@ -50,7 +50,7 @@ let enlargen n w h univ =
   let n = max 1 (n-1) in
   let empty_rows, empty_cols = univ |> List.fold_left (fun (rows, cols) (x, y) ->
     (IntSet.remove y rows, IntSet.remove x cols)
-  ) (mk_range_excl 0 h |> IntSet.of_list, mk_range_excl 0 w |> IntSet.of_list) in
+  ) (set_of_range 0 h, set_of_range 0 w) in
   let count_lt x s = s |> IntSet.filter ((>=) x) |> IntSet.cardinal in
   univ |> List.map (fun (x,y) -> (
     x + n * (count_lt x empty_cols),
@@ -58,10 +58,6 @@ let enlargen n w h univ =
   ))
 ;;
 
-
-let shortest_path (x, y) (x', y') =
-  abs (x-x') + abs (y-y')
-;;
 
 let run factor input =
   let univ, w, h = parse_input input in
@@ -75,7 +71,7 @@ let run factor input =
   ) PosPairSet.empty in
   pairs
     |> PosPairSet.to_list
-    |> List.map (fun (src, dst) -> shortest_path src dst)
+    |> List.map (fun ((x,y), (x',y')) -> abs (x-x') + abs (y-y'))
     |> List.fold_left (+) 0
 ;;
 
