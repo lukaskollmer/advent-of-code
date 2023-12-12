@@ -33,6 +33,7 @@ let count_where f l =
   in imp 0 l
 ;;
 
+
 let repeat n l =
   let rec imp acc = function
     | 0 -> acc
@@ -40,11 +41,33 @@ let repeat n l =
   in imp [] n
 ;;
 
+let repeat' n sep l =
+  match n with
+    | n when n <= 0 -> []
+    | 1 -> l
+    | n -> begin
+      let rec imp acc = function
+        | 0 -> acc
+        (* | 1 -> acc @ l *)
+        | n -> imp (acc @ [sep] @ l) (n-1)
+      in imp l (n-1)
+    end
+;;
+
 let rec join sep = function
   | [] -> []
   | x::xs -> x @ sep :: join sep xs
 ;;
 
+
+
+let time msg f =
+  let t0 = Sys.time () in
+  let r = f () in
+  let t1 = Sys.time () in
+  Printf.printf "%s: %f\n%!" msg (t1 -. t0) ;
+  r
+;;
 
 
 
@@ -63,10 +86,26 @@ let parse_input input =
 
 
 
-let springs_to_string springs =
-  springs |> List.map (function Operational -> "." | Broken -> "#" | Unknown -> "?") |> String.concat ""
+let springs_to_string = function
+  | [] -> "[]"
+  | springs -> springs |> List.map (function Operational -> "." | Broken -> "#" | Unknown -> "?") |> String.concat ""
 ;;
 
+
+
+let satisfies_counts' counts springs =
+  assert (not (List.mem Unknown springs)) ;
+  let broken_segments = springs
+    |> springs_to_string
+    |> String.split_on_char '.'
+    |> List.map String.length
+    |> List.filter ((<>) 0)
+  in
+  (* Printf.printf "[satisfies_counts']\n" ;
+  Printf.printf "- broken_segments: %s\n" (broken_segments |> List.map string_of_int |> String.concat ",") ;
+  Printf.printf "- counts:          %s\n" (counts |> List.map string_of_int |> String.concat ",") ; *)
+  broken_segments = counts
+;;
 
 
 let satisfies_counts counts springs =
@@ -88,23 +127,13 @@ let satisfies_counts counts springs =
         && imp (springs, if count = 1 then counts else ((count-1)::counts))
     | (Unknown::_, _) -> false
     | (Broken::_, _) -> false
-  in imp (springs, counts)
-;;
-
-
-let satisfies_counts' counts springs =
-  assert (not (List.mem Unknown springs)) ;
-  let broken_segments = springs
-    |> springs_to_string
-    |> String.split_on_char '.'
-    |> List.map String.length
-    |> List.filter ((<>) 0)
   in
-  (* Printf.printf "[satisfies_counts']\n" ;
-  Printf.printf "- broken_segments: %s\n" (broken_segments |> List.map string_of_int |> String.concat ",") ;
-  Printf.printf "- counts:          %s\n" (counts |> List.map string_of_int |> String.concat ",") ; *)
-  broken_segments = counts
+  let r = imp (springs, counts) in
+  if r <> satisfies_counts' counts springs then
+    Printf.printf "AAAAAAAAAAAAA %s %s\n%!" (springs_to_string springs) (counts |> List.map string_of_int |> String.concat ",") ;
+  r
 ;;
+
 
 
 let dump_entry_list l =
@@ -113,122 +142,281 @@ let dump_entry_list l =
 ;;
 
 let all_perms l =
-  let rec imp i = function
+  let rec imp = function
     | [] -> []
     | [Unknown] -> [[Operational]; [Broken]]
     | [x] -> [[x]]
     | Unknown::xs ->
-      (* Printf.printf "Unknown (at %d)\n" i ; *)
-      let a = xs |> imp (i+1) |> List.map (List.cons Broken) in
-      let b = xs |> imp (i+1) |> List.map (List.cons Operational) in
-      (* Printf.printf "a[at %d]: " i ; a |> List.flatten |> dump_entry_list ;
-      Printf.printf "b[at %d]: " i ; b |> List.flatten |> dump_entry_list ; *)
-      (* [a |> List.flatten; b |> List.flatten] *)
+      let a = xs |> imp |> List.map (List.cons Broken) in
+      let b = xs |> imp |> List.map (List.cons Operational) in
       a @ b
     | x::xs ->
-      (* Printf.printf "Known (at %d)\n" i ; *)
-      let r = xs |> imp (i+1) |> List.map (List.cons x) in
-      (* Printf.printf "#r[at %d]: %d\n" i (List.length r) ;
-      Printf.printf "r[at %d].lens: " i ; r |> List.map (List.length) |> List.iter (Printf.printf "%d ") ; Printf.printf "\n" ;
-      Printf.printf "r[at %d]: " i ; r |> List.flatten |> dump_entry_list ; *)
+      xs |> imp |> List.map (List.cons x)
+  in
+  imp l
+;;
+
+
+let fold_perms f acc l =
+  let rec imp acc springs = function
+    | [] -> acc
+    | [Unknown] -> 
+      let acc = f acc (List.rev (Operational::springs)) in
+      let acc = f acc (List.rev (Broken::springs)) in
+      acc
+    | [x] -> f acc (List.rev (x::springs))
+    | Unknown::xs ->
+      let acc = imp acc (Broken::springs) xs in
+      let acc = imp acc (Operational::springs) xs in
+      acc
+    | x::xs -> imp acc (x::springs) xs
+  in
+  imp acc [] l
+;;
+
+
+
+let calc_row' springs counts =
+  fold_perms (fun acc springs ->
+    if satisfies_counts' counts springs
+    then begin
+      dump_entry_list springs ;
+      acc+1 end
+    else acc
+  ) 0 springs
+;;
+
+
+
+
+module RowCalcHash = struct
+  type t = (entry list * int list)
+  let equal (a: t) (b: t): bool = a = b
+  (* let hash (i: int) = i land max_int *)
+  let hash (springs, counts) =
+    let hash = List.fold_left (fun acc x -> acc lxor (match x with Operational -> 1 | Broken -> 2 | Unknown -> 3)) max_int springs in
+    hash lxor List.fold_left (fun acc x -> acc lxor x) max_int counts
+end
+
+module RowCalcHashTbl = Hashtbl.Make(RowCalcHash)
+
+
+
+let memo_rec f =
+  let h = Printf.printf "MAKE HASHTBL\n%!" ; RowCalcHashTbl.create 16 in
+  let rec g x =
+    try RowCalcHashTbl.find h x
+    with Not_found ->
+      let y = f g x in
+      RowCalcHashTbl.add h x y;
+      y
+  in
+  g
+;;
+
+
+let drop_first n l =
+  let rec imp = function
+    | (0, xs) -> xs
+    | (_, []) -> []
+    | (n, x::xs) -> imp (n-1, xs)
+  in
+  imp (n, l)
+;;
+
+let take n l =
+  let rec imp acc = function
+    | (0, _) -> List.rev acc
+    | (_, []) -> List.rev acc
+    | (n, x::xs) -> imp (x::acc) (n-1, xs)
+in imp [] (n, l)
+;;
+
+let first_n_satisfy n f l =
+  let rec imp = function
+    | (0, _) -> true
+    | (_, []) -> false
+    | (n, x::xs) -> f x && imp (n-1, xs)
+  in imp (n, l)
+;;
+
+let subrange start len l =
+  let rec imp acc = function
+    | (0, _) -> List.rev acc
+    | (_, []) -> List.rev acc
+    | (n, x::xs) -> imp (x::acc) (n-1, xs)
+  in imp [] (len, drop_first start l)
+;;
+
+
+
+
+let calc_row'' self = function
+    | [], [] -> 1
+    | [], _ -> 0
+    | Operational::springs, counts -> self (springs, counts)
+    (* | Broken::_, [] -> 0 *)
+    | Broken::_, [] -> 0
+    (* | Broken::Operational::springs, 1::counts -> self (Operational::springs, counts) *)
+    | ((Broken::_) as springs), c::counts ->
+      (* begin match counts with
+        | [] -> 0
+        (* | 1::[] -> self springs [] *)
+        | 1::counts -> (
+          match springs with
+            | Operational::springs -> self springs counts
+            | Broken::_ -> 0
+            | Unknown::springs ->
+              (* we assume that the next spring is operational, and just skip it *)
+              self springs counts
+            | [] -> if counts = [] then 1 else 0
+        )
+        | n::counts -> self springs (n-1::counts)
+      end *)
+      begin
+        (* let springs = Broken::springs in *)
+        (* let x1 = List.length springs >= c in
+        let x2 = first_n_satisfy c ((<>) Operational) springs in
+        (* let x2 = springs |>  *)
+        (* let x3 = match List.nth_opt springs c with None -> true | Some x -> x <> Broken in *)
+        let x3 = (List.length springs = c) || (List.nth springs c <> Broken) in *)
+        if (List.length springs >= c) && (first_n_satisfy c ((<>) Operational) springs) && ((List.length springs = c) || (List.nth springs c <> Broken)) then
+          self (drop_first (c+1) springs, counts)
+        else
+          (* begin Printf.printf "DID NOT EVAL TO TRUE FFFFF (%b, %b, %b)\n%!" x1 x2 x3; *)
+          0
+        (* end *)
+      end
+    | Unknown::springs, counts ->
+      (self (springs, counts)) + (self (Broken::springs, counts))
+;;
+
+
+let calc_rowwwwww self (springs, count) =
+  let r = calc_row'' self (springs, count) in
+  (* begin
+    let r' = calc_row' springs count in
+    Printf.printf "calc_row'' %s %s = %d (%b; old: %d, new: %d)\n%!"
+      (springs_to_string springs)
+      (count |> List.map string_of_int |> String.concat ",")
       r
-  in
-  imp 0 l
-;;
-
-
-
-let calc_row (springs, counts) =
-  (* Printf.printf "[calc_row] springs: " ; dump_entry_list springs ; *)
-  let perms = all_perms springs in
-  (* Printf.printf "#springs: %d\n" (List.length perms) ; *)
-  (* perms |> List.map (fun p -> 
-    Printf.printf "\n" ;
-    dump_entry_list p ;
-    (* Printf.printf "Satisfies counts: %b\n" (satisfies_counts counts p) ; *)
-  ); *)
-  (* failwith "TODO" ;
-  (* let rec imp acc = function
-    | *) *)
-
-  (* let n = perms
-    |> List.filter (satisfies_counts counts)
-    |> inspect (fun p -> Printf.printf "Perm: %s\n" (springs_to_string p))
-    |> List.length
-  in
-  Printf.printf "[calc_row] springs: %s = %d\n" (springs_to_string springs) n ;
-  n *)
-
-  (* if List.length springs = 15 then begin
-    Printf.printf "All Perms for %s:\n" (springs_to_string springs);
-    perms |> List.iter (fun perm ->
-      Printf.printf "Perm: %s\n = %b\n" (springs_to_string perm) (satisfies_counts' counts perm) ;
-    )
+      (r = (r'))
+      (r')
+      r
+    ;
   end ; *)
+  r
+  (* calc_row' springs count *)
+;;
 
-  let perms = perms |> List.filter (satisfies_counts' counts) in
-  let n = List.length perms in
-  (* Printf.printf "[calc_row] springs: %s %s = %d\n%!" (springs_to_string springs) (counts |> List.map string_of_int |> String.concat ",") n ; *)
-  (* inspect (fun p -> Printf.printf "- %s (#=%d)\n" (springs_to_string p) (count_where ((=) p) perms)) perms ; *)
-  n
+(* let calc_row'' = memo_rec calc_row'' ;; *)
+(* let calc_row'' = memo_rec calc_rowwwwww ;; *)
+
+
+let take n l =
+  let rec imp acc = function
+    | (0, _) -> List.rev acc
+    | (_, []) -> List.rev acc
+    | (n, x::xs) -> imp (x::acc) (n-1, xs)
+  in imp [] (n, l)
+;;
+
+let chunked n l =
+  if n = 0 then [l] else
+  let rec imp acc = function
+    | [] -> List.rev acc
+    | l -> imp ((take n l)::acc) (drop_first n l)
+in imp [] l
 ;;
 
 
-
-
-
-let pt01 input =
-  input
-    |> parse_input
-    (* |> List.map calc_row *)
-    |> List.mapi (fun idx r -> Printf.printf "%3d / %3d\n%!" idx (List.length input) ; calc_row r)
+let run (input: (entry list * int list) list) =
+  (* input
+    |> List.mapi (fun idx (springs, counts) ->
+      Printf.printf "IDX %d\n%!" idx ;
+      let calc_row'' = memo_rec calc_rowwwwww in
+      (* Domain.spawn (fun () -> calc_row'' springs counts) *)
+      Domain.spawn (fun () -> let r = calc_row'' springs counts in Printf.printf "IDX %d DONE\n%!" idx ; r )
+    )
+    |> List.map Domain.join
+    |> List.fold_left (+) 0 *)
+  Printf.printf "RUN\n%!" ;
+  (* let progress_mutex = Mutex.create () in
+  let progress = ref 0 in
+  let incr_progress () =
+    Mutex.lock progress_mutex ;
+    incr progress ;
+    let p = !progress in
+    Mutex.unlock progress_mutex ; p
+  in *)
+  let x = input
+    |> List.mapi (fun idx (a,b) -> (idx, a, b))
+    (* |> subrange 0 500 *)
+  in
+  Printf.printf "will make chunks\n%!" ;
+  let x = x |> chunked (List.length x / 10) in
+  Printf.printf "did make chunks\n%!" ;
+  let x = x
+    |> inspect (fun chunks -> Printf.printf "CHUNKS: %d\n%!" (List.length chunks))
+    |> List.mapi (fun idx chunk -> (idx, chunk)) in
+  x |> List.fold_left (fun acc (chunk_idx, chunk) ->
+      let calc_row'' = memo_rec calc_rowwwwww in
+      (* Domain.spawn (fun () -> chunk |> List.map (fun (springs, counts) -> calc_row'' springs counts) |> List.fold_left (+) 0)::acc *)
+      (* Domain.spawn (fun () -> 0)::acc *)
+      Printf.printf "Running Domain for chunk idx %d\n%!" chunk_idx;
+      let d: int Domain.t = Domain.spawn (fun () ->
+        let x: int = chunk |> List.mapi (fun i (_idx, springs, counts) ->
+          (* let r = if _idx >= 500 then calc_row'' springs counts else 0 in *)
+          let r = calc_row'' (springs, counts) in
+          Printf.printf "ROW %s %s = %d\n%!" (springs_to_string springs) (counts |> List.map string_of_int |> String.concat ",") r ;
+          (* Printf.printf "Chunk %d.%d is DONE (overall progress: %d)\n%!" chunk_idx i (incr_progress ()) ; r *)
+          (* Printf.printf "Chunk %d.%d is DONE (overall progress: %d)\n%!" chunk_idx i (incr_progress ()) ; r *)
+          Printf.printf "Chunk %d.%d is DONE\n%!" chunk_idx i ; r
+        ) |> List.fold_left (+) 0 in
+        Printf.printf "chunk idx %d IS DONE\n%!" chunk_idx;
+        x
+      ) in
+      d::acc
+    ) []
+    |> List.map Domain.join
     |> List.fold_left (+) 0
 ;;
 
 
-let pt02 input =
-  failwith "TODO" ;
-  (* let i = parse_input input in
-  let r = List.map (fun (springs, counts) ->
-    let x = repeat 5 springs in
-    let y = repeat 5 counts in (true, true)
-    (* (repeat 5 springs |> join Unknown, repeat 5 counts |> List.flatten) *)
-  ) i in *)
-
-  let rows = input |> parse_input
-    |> List.map (fun (springs, counts) ->
-      let x = repeat 5 springs in
-      let y = repeat 5 counts in (x, y)
-      (* (repeat 5 springs |> join Unknown, repeat 5 counts |> List.flatten) *)
+let pt01 input =
+  let n = List.length input in
+  (* input
+    |> parse_input
+    |> List.mapi (fun idx (springs, counts) ->
+      let p = time (Printf.sprintf "\n%3d/%3d" idx n) (fun () -> calc_row'' springs counts) in
+      Printf.printf "- %s %s = %d\n%!" (springs_to_string springs) (counts |> List.map string_of_int |> String.concat ",") p ;
+      p
     )
-  in
-
-  let max_unknowns = rows |> List.fold_left (fun acc (springs, _) ->
-    springs |> count_where ((=) Unknown) |> max acc
-  ) 0 in
-  Printf.printf "max_unknowns: %d\n%!" max_unknowns ;
-
-  failwith "TODO" ;
-
-  let n = List.length input in 0
-
-  (* input |> List.fold_left (fun acc (springs, counts) ->
-    let springs = repeat 5 springs in
-    let counts = repeat 5 counts in
-    (* if satisfies_counts' counts springs then acc+1 else acc *)
-    acc + calc_row (springs, counts)
-  ) 0 *)
-
-  (* (* input
-    |> parse_input *)
-    (* |> List.map calc_row *)
-    rows
-    |> List.mapi (fun idx r -> Printf.printf "%3d / %3d\n%!" idx (List.length rows) ; calc_row r)
     |> List.fold_left (+) 0 *)
+    run (input |> parse_input)
 ;;
+
+
+let pt02 input =
+  let n = List.length input in
+  (* let i = ref 0 in
+  input
+    |> parse_input
+    |> List.map (fun (springs, counts) -> (repeat' 5 Unknown springs, repeat 5 counts))
+    |> List.fold_left (fun acc (springs, counts) ->
+      (* acc + calc_row' springs counts *)
+      let x = time (Printf.sprintf "%3d/%3d" !i n) (fun () -> calc_row'' springs counts) in
+      incr i ; acc + x
+    ) 0 *)
+  input
+    |> parse_input
+    |> List.map (fun (springs, counts) -> (repeat' 5 Unknown springs, repeat 5 counts))
+    |> run
+;;
+
 
 
 let () =
   let input = read_lines "input.txt" in
-  input |> pt01 |> Printf.printf "Pt01: %d\n%!" ;
+  (* input |> pt01 |> Printf.printf "Pt01: %d\n%!" ; *)
   input |> pt02 |> Printf.printf "Pt02: %d\n%!" ;
