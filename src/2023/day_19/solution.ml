@@ -9,16 +9,8 @@ let read_lines filename =
   imp []
 ;;
 
-let get_chars s =
-  let rec imp l = function
-    | -1 -> l
-    | i  -> imp (s.[i] :: l) (i-1)
-  in
-  imp [] (String.length s - 1)
-;;
 
-
-let get_opt = function Some x -> x | None -> failwith "None." ;;
+let unwrap = function Some x -> x | None -> failwith "None" ;;
 
 
 let rec any f = function
@@ -41,8 +33,6 @@ let drop n l =
     | (n, x::xs) -> imp (n-1, xs)
   in imp (n, l)
 ;;
-
-let drop_end n l = take (List.length l - n) l ;;
 
 let str_drop n s =
   if n < 0 then s
@@ -67,25 +57,23 @@ type rule = rule_cond * rule_action ;;
 let parse_rule = function
   | "A" -> True, Accept
   | "R" -> True, Reject
-  | s ->
-    if not (String.contains s ':')
-    then (True, SendToWorkflow s)
-    else begin
-      let s = String.split_on_char ':' s in
-      let p = match (List.hd s).[0] with 'x' -> X | 'm' -> M | 'a' -> A | 's' -> S | _ -> failwith "" in
-      let v = int_of_string (List.hd s |> str_drop 2) in
-      let cond = match (List.hd s).[1] with
-        | '<' -> LT (p, v)
-        | '>' -> GT (p, v)
-        | _ -> failwith "ugh"
-      in
-      let action = match List.nth s 1 with
-        | "A" -> Accept
-        | "R" -> Reject
-        | s -> SendToWorkflow s
-      in
-      (cond, action)
-    end
+  | s when not (String.contains s ':') -> True, SendToWorkflow s
+  | s -> begin
+    let s = String.split_on_char ':' s in
+    let p = match (List.hd s).[0] with 'x' -> X | 'm' -> M | 'a' -> A | 's' -> S | _ -> failwith "" in
+    let v = int_of_string (List.hd s |> str_drop 2) in
+    let cond = match (List.hd s).[1] with
+      | '<' -> LT (p, v)
+      | '>' -> GT (p, v)
+      | _ -> failwith ""
+    in
+    let action = match List.nth s 1 with
+      | "A" -> Accept
+      | "R" -> Reject
+      | s -> SendToWorkflow s
+    in
+    (cond, action)
+  end
 ;;
 
 let parse_workflow s =
@@ -103,7 +91,7 @@ let parse_part s =
 ;;
 
 let parse_input input =
-  let split_idx = input |> List.find_index ((=) "") |> get_opt in
+  let split_idx = input |> List.find_index ((=) "") |> unwrap in
   let workflows = input |> take split_idx |> List.map parse_workflow in
   let parts = input |> drop (split_idx+1) |> List.map parse_part in
   (workflows, parts)
@@ -112,11 +100,22 @@ let parse_input input =
 
 
 let negate_cond = function
-  | True -> failwith "ugh"
+  | True -> failwith "unreachable"
   | GT (p, v) -> LT (p, v + 1)
   | LT (p, v) -> GT (p, v - 1)
 ;;
 
+let simplify_conds conds =
+  let rec imp p =
+    conds |> List.fold_left (fun ((lower, upper) as acc) -> function
+      | True -> acc
+      | GT (p', _) | LT (p', _) when p' <> p -> acc
+      | GT (_, v) -> (max lower v, upper)
+      | LT (_, v) -> (lower, min upper v)
+    ) (0, 4001)
+  in
+  (imp X, imp M, imp A, imp S)
+;;
 
 let simplify_workflows workflows =
   let m = StringMap.of_list workflows in
@@ -131,54 +130,39 @@ let simplify_workflows workflows =
       end
     | (cond, action)::rules -> begin
       let path_if_cond_true = match action with
-        | Accept -> [acc_cur @ [cond]]
+        | Accept -> [cond::acc_cur]
         | Reject -> []
-        | SendToWorkflow w -> imp (acc_cur @ [cond]) (StringMap.find w m)
+        | SendToWorkflow w -> imp (cond::acc_cur) (StringMap.find w m)
       in
-      let path_if_cond_false = imp (acc_cur @ [negate_cond cond]) rules in
+      let path_if_cond_false = imp (negate_cond cond :: acc_cur) rules in
       path_if_cond_true @ path_if_cond_false
       end
   in
-  imp [] (StringMap.find "in" m)
-;;
-
-
-let simplify_conds conds =
-  let rec imp p =
-    let conds = List.filter (function True -> false | GT (p', _) | LT (p', _) -> p' = p) conds in
-    conds |> List.fold_left (fun (lower, upper) -> function
-      | GT (_, v) -> (max lower v, upper)
-      | LT (_, v) -> (lower, min upper v)
-      | _ -> failwith "ugh"
-    ) (0, 4001)
-  in
-  (imp X, imp M, imp A, imp S)
+  imp [] (StringMap.find "in" m) |> List.map simplify_conds
 ;;
 
 
 let pt01 conds parts =
   let aux x (lower, upper) =
-    x > lower && x < upper
+    lower < x && x < upper
   in
-  parts |> List.filter (fun (x,m,a,s) -> any (fun (x', m', a', s') ->
-    aux x x' && aux m m' && aux a a' && aux s s'
-  ) conds)
-  |> List.fold_left (fun acc (x,m,a,s) -> acc + x+m+a+s) 0
+  parts |> List.fold_left (fun acc (x,m,a,s) ->
+    if any (fun (x', m', a', s') -> aux x x' && aux m m' && aux a a' && aux s s') conds
+    then acc + x+m+a+s
+    else acc
+  ) 0
 ;;
 
-
-let pt02 conds parts =
-  let aux (x,y) =
+let pt02 conds =
+  let aux (x, y) =
     y - (x + 1)
   in
-  conds |> List.map (fun (x, m, a, s) ->
-    aux x * aux m * aux a * aux s
-  ) |> List.fold_left (+) 0
+  conds |> List.fold_left (fun acc (x, m, a, s) -> acc + aux x * aux m * aux a * aux s) 0
 ;;
 
 
 let () =
   let workflows, parts = read_lines "input.txt" |> parse_input in
-  let conds = workflows |> simplify_workflows |> List.map simplify_conds in
+  let conds = workflows |> simplify_workflows in
   pt01 conds parts |> Printf.printf "Pt01: %d\n%!" ;
-  pt02 conds parts |> Printf.printf "Pt02: %d\n%!" ;
+  pt02 conds |> Printf.printf "Pt02: %d\n%!" ;
