@@ -33,6 +33,8 @@ let drop n l =
   in imp (n, l)
 ;;
 
+let drop_end n l = take (List.length l - n) l ;;
+
 
 let str_drop n s =
   if n < 0 then s
@@ -47,29 +49,28 @@ let str_drop_end n s =
 ;;
 
 type dir = Up | Down | Left | Right ;;
-type color = int * int * int ;;
 type step = dir * int ;;
 
 
 let dir_of_char = function | 'U' -> Up | 'D' -> Down | 'L' -> Left | 'R' -> Right | _ -> failwith "invalid direction" ;;
 
-let col_of_string s =
-  let s = if String.starts_with s ~prefix:"(" then str_drop 1 s else s in
-  let s = if String.ends_with s ~suffix:")" then str_drop_end 1 s else s in
-  let s = if String.starts_with s ~prefix:"#" then str_drop 1 s else s in
-  let imp pos =
-    let s = String.sub s pos 2 in
-    int_of_string (Printf.sprintf "0x%s" s)
-  in
-  (imp 0, imp 2, imp 4)
-;;
-
 let parse_step s =
   let split = String.split_on_char ' ' s in
   let dir = dir_of_char s.[0] in
   let len = List.nth split 1 |> int_of_string in
-  let col = List.nth split 2 |> col_of_string in
-  (dir, len, col)
+  let len', dir' = List.nth split 2 |> (fun s ->
+    (* Printf.printf "%s\n%!" ((Printf.sprintf "0x%s" (s |> str_drop 2 |> str_drop_end 2))) ; *)
+    let len' = int_of_string (Printf.sprintf "0x%s" (s |> str_drop 2 |> str_drop_end 2)) in
+    let dir' = match s.[String.length s - 2] with
+      | '0' -> Right
+      | '1' -> Down
+      | '2' -> Left
+      | '3' -> Up
+      | _ -> failwith "invalid input"
+    in
+    (len', dir')
+  ) in
+  (dir, len, dir', len')
 ;;
 
 
@@ -103,7 +104,7 @@ let _mk_path_acc_step_aux acc dir len =
 
 
 let get_path start steps =
-  steps |> List.fold_left (fun steps (dir, len, _) ->
+  steps |> List.fold_left (fun steps (dir, len) ->
     _mk_path_acc_step_aux steps dir len
   ) [start]
 ;;
@@ -111,7 +112,7 @@ let get_path start steps =
 
 let normalise_steps steps =
   let start = (0, 0) in
-  let path, min_x, min_y, max_x, max_y, _ = steps |> List.fold_left (fun (path, min_x, min_y, max_x, max_y, cur) (dir, len, _) ->
+  let path, min_x, min_y, max_x, max_y, _ = steps |> List.fold_left (fun (path, min_x, min_y, max_x, max_y, cur) (dir, len) ->
     let (x, y) = advance_pos len cur dir in
     (* let path = List.rev_append (List.init (abs len) (fun i -> advance_pos ((if len >= 0 then (~+) else (~-))(i+1)) (List.hd path) dir)) path in *)
     let path = _mk_path_acc_step_aux path dir len in
@@ -155,7 +156,7 @@ let normalise_steps steps =
 
 
 let estimate_size steps =
-  let (w, h) = steps |> List.fold_left (fun ((x, y), (max_x, max_y)) (dir, len, _) ->
+  let (w, h) = steps |> List.fold_left (fun ((x, y), (max_x, max_y)) (dir, len) ->
     Printf.printf "estimate_size: pos: (%d, %d);\n" x y;
     assert (x >= 0 && y >= 0 && max_x >= 0 && max_y >= 0);
     let (x, y) = advance_pos len (x,y) dir in
@@ -235,7 +236,7 @@ let reachability (path: (int*int) list) (map: bool array array) =
 ;;
 
 
-let pt01 steps =
+(* let pt01 steps =
   let w, h = estimate_size steps in
   (* Printf.printf "estimated size %d %d\n%!" h w ; *)
   let valid_pos (x,y) = x >= 0 && x < w && y >= 0 && y < h in
@@ -245,11 +246,11 @@ let pt01 steps =
     visited.(y).(x) <- true;
     match steps with
     | [] -> ()
-    | (dir, len, col)::xs ->
+    | (dir, len)::xs ->
       begin
         let next_pos = advance_pos1 (x,y) dir in
         assert(valid_pos next_pos);
-        imp next_pos (if len = 1 then xs else (dir, len-1, col)::xs)
+        imp next_pos (if len = 1 then xs else (dir, len-1)::xs)
       end
   in imp (0,0) steps ;
   (* Printf.printf "map after visiting:\n%!" ; *)
@@ -258,10 +259,10 @@ let pt01 steps =
   (* Printf.printf "path:\n%!" ; *)
   (* path |> List.iter (fun (x,y) -> Printf.printf "%d %d\n%!" x y) ; *)
   reachability (get_path (0,0) steps) visited
-;;
+;; *)
 
 
-let pt01 steps =
+let run steps =
   let start, steps, (w, h), (min_x, min_y), (max_x, max_y) = normalise_steps steps in
   let valid_pos (x,y) =
     Printf.printf "valid_pos %d %d\n%!" x y ;
@@ -274,12 +275,12 @@ let pt01 steps =
     visited.(y).(x) <- true;
     match steps with
     | [] -> ()
-    | (dir, len, col)::xs ->
+    | (dir, len)::xs ->
       begin
         let next_pos = advance_pos1 (x,y) dir in
         (* Printf.printf "next_pos: %d %d\n%!" (fst next_pos) (snd next_pos) ; *)
         (* assert(valid_pos next_pos); *)
-        imp next_pos (if len = 1 then xs else (dir, len-1, col)::xs)
+        imp next_pos (if len = 1 then xs else (dir, len-1)::xs)
       end
   in imp start steps ;
   (* Printf.printf "map after visiting:\n%!" ; *)
@@ -289,9 +290,49 @@ let pt01 steps =
   (* Printf.printf "path:\n%!" ; *)
   (* path |> List.iter (fun (x,y) -> Printf.printf "%d %d\n%!" x y) ; *)
   reachability path visited
+;;
 
+
+(* Implementation strongly inspired by https://github.com/BenjaminDecker/advent-of-code/blob/main/src/18/solution.jl *)
+
+let run' steps =
+  let path, path_length = (
+    let rec imp (path, len) = function
+      | [] -> (path, len)
+      | (dir, len')::xs ->
+        let cur = List.hd path in
+        imp ((advance_pos len' cur dir)::path, len+len') xs
+      in
+      imp ([0,0], 0) steps
+  ) in
+  let shoelace' (x,y) (x',y') = x*y' - x'*y in
+  let shoelace points =
+    let rec imp acc = function
+      | [] -> acc
+      | [x] -> acc + shoelace' x (List.hd points)
+      | x::y::xs -> imp (acc + shoelace' x y) (y::xs)
+    in
+    imp 0 (points |> drop_end 1)
+  in
+  (abs (shoelace path / 2)) - path_length / 2 + 1 + path_length
+;;
+
+
+let pt01 steps =
+  steps
+    |> List.map (fun (dir, len, _, _) -> (dir, len))
+    |> run'
+;;
+
+
+let pt02 steps =
+  steps
+    |> List.map (fun (_, _, dir, len) -> (dir, len))
+    |> run'
+;;
 
 let () =
   let input = read_lines "input.txt" in
   let steps = input |> List.map parse_step in
   steps |> pt01 |> Printf.printf "Pt01: %d\n%!" ;
+  steps |> pt02 |> Printf.printf "Pt02: %d\n%!" ;

@@ -104,17 +104,17 @@ module RowCalcHash = struct
     hash lxor List.fold_left (fun acc x -> acc lxor x) max_int counts
 end
 
-module RowCalcHashTbl = Hashtbl.Make(RowCalcHash)
+(* module RowCalcHashTbl = Hashtbl.Make(RowCalcHash) *)
 
 
 
 let memo_rec f =
-  let h = RowCalcHashTbl.create 16 in
+  let h = Hashtbl.create 16 in
   let rec g x =
-    try RowCalcHashTbl.find h x
+    try Hashtbl.find h x
     with Not_found ->
       let y = f g x in
-      RowCalcHashTbl.add h x y;
+      Hashtbl.add h x y;
       y
   in
   g
