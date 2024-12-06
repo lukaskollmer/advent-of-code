@@ -183,6 +183,14 @@ let chunked n l =
   in imp [] l
 ;;
 
+let chunked' n l =
+  let size = List.length l / n in
+  Printf.printf "chunk_size: %i\n%!" size ;
+  chunked size l
+;;
+
+let chunked'' l = chunked' (Domain.recommended_domain_count ()) l;;
+
 
 
 let solve map =
@@ -210,9 +218,9 @@ let solve map =
     reachable'
     |> PosSet.to_list
     |> List.mapi (fun i (x,y) -> (i,x,y))
-    |> chunked 750
+    |> chunked' 8
     |> List.map (fun poss -> Domain.spawn (fun () -> poss|> List.fold_left (fun acc (i,x,y) -> 
-      Printf.printf "run %i\n%!" i ; (add_obstacle x y) |> has_loop  |> Bool.to_int
+      Printf.printf "run %i\n%!" i ; acc + ((add_obstacle x y) |> has_loop  |> Bool.to_int)
       ) 0))
     |> List.map Domain.join |> List.fold_left (+) 0
     |> Printf.printf "pt02: %i\n%!" ;
