@@ -17,147 +17,6 @@ let get_chars s =
 ;;
 
 
-type direction = Up | Down | Left | Right
-
-type tile = Free | Obstacle | Player of direction;;
-
-type map = tile array array ;;
-
-
-let tile_of_char = function
-  | '.' -> Free
-  | '#' -> Obstacle
-  | '^' -> Player Up
-  | 'v' -> Player Down
-  | '<' -> Player Left
-  | '>' -> Player Right
-  | _ -> failwith "invalid tile"
-;;
-
-
-let parse input =
-  let size = List.length input in
-  let map = Array.init size (fun _ -> Array.make size Free) in
-  input |> List.iteri (fun row_idx row ->
-    row |> List.iteri (fun col_idx col ->
-      map.(row_idx).(col_idx) <- tile_of_char col
-    )
-  ) ;
-  map
-;;
-
-
-
-let copy map =
-  let size = Array.length map in
-  Array.init size (fun i -> Array.copy map.(i))
-;;
-
-
-let get_player_pos map =
-  map |> Array.find_mapi (fun row_idx row ->
-    match Array.find_mapi (fun col_idx -> function Player dir -> Some (col_idx, dir) | _ -> None) row with
-      | None -> None
-      | Some (col_idx, dir) -> Some (col_idx, row_idx, dir)
-  )
-;;
-
-let next_pos_in_dir (x,y) = function
-  | Up -> (x,y-1)
-  | Down -> (x,y+1)
-  | Left -> (x-1,y)
-  | Right -> (x+1,y)
-;;
-
-
-let is_valid_pos x y map =
-  let size = Array.length map in
-  x >=0 && x < size && y >=0 && y < size
-;;
-
-
-let turn = function
-  | Up -> Right
-  | Right -> Down
-  | Down -> Left
-  | Left -> Up
-;;
-
-module PosSet = Set.Make(struct
-  type t = int * int
-  let compare = compare
-end) ;;
-
-
-module PosSet' = Set.Make(struct
-  type t = int * int * direction
-  let compare = compare
-end) ;;
-
-
-
-type state = Ok of (int*int*direction) | OffBounds | Loop ;;
-
-
-let rec step seen map =
-  let map = copy map in
-  match get_player_pos map with
-    | None -> (OffBounds, map)
-    | Some (x, y, dir) -> (
-      let (x',y') = next_pos_in_dir (x,y) dir in
-      if not (is_valid_pos x' y' map) then (
-        (* player walked off map *)
-        (* Printf.printf "step: [%i, %i] -> [%i, %i] player walked off map\n%!" x y x' y' ;  *)
-        map.(y).(x) <- Free ; (OffBounds, map))
-      else
-        (match map.(y').(x') with
-          | Free -> (* can walk there *)
-            map.(y).(x) <- Free ;
-            map.(y').(x') <- Player dir ;
-            (* Printf.printf "step: [%i, %i] -> [%i, %i] normal walk\n%!" x y x' y' ; *)
-            (if PosSet'.mem (x',y', dir) seen then Loop else Ok (x',y',dir)), map
-          | Obstacle -> (* need to turn *)
-            (* Printf.printf "step: [%i, %i] -> [%i, %i] turn\n%!" x y x' y' ; *)
-            map.(y).(x) <- Player (turn dir) ;
-            step seen map
-            (* Ok (x',y'), map *)
-          | Player _ -> failwith "invalid")
-    )
-;;
-
-
-
-let run map =
-  let rec imp seen map =
-    match step seen map with
-      | OffBounds, _ -> OffBounds, seen
-      | Ok pos, map -> imp (PosSet'.add pos seen) map
-      | Loop, map -> Loop, seen
-  in
-  imp PosSet'.empty map
-;;
-
-
-
-let count_where p l =
-  l |> List.fold_left (fun acc x -> acc + if p x then 1 else 0) 0
-;;
-
-
-let add_obstacle map x y =
-  let map = copy map in
-  map.(y).(x) <- Obstacle ;
-  map
-;;
-
-
-let has_loop map =
-  match run map with
-    | Loop, _ -> true
-    | _, _ -> false
-;;
-
-
 let drop_first n l =
   let rec imp = function
     | (0, xs) -> xs
@@ -193,44 +52,152 @@ let chunked'' l = chunked' (Domain.recommended_domain_count ()) l;;
 
 
 
-let solve map =
-  let (_, reachable) = run map in
-  let reachable' = reachable |> PosSet'.to_list |> List.map (fun (x,y,_) -> (x,y)) |> PosSet.of_list in
-  reachable' |> PosSet.cardinal |> Printf.printf "pt01: %i\n%!" ;
-  let add_obstacle = add_obstacle map in
-  Printf.printf "Running pt02\n%!" ;
-  if false then (
-    let idx = ref 0 in
-    reachable' |> PosSet.to_list |> count_where (fun (x,y) ->
-      Printf.printf "%i of %i\n%!" (!idx) (reachable' |> PosSet.cardinal) ;
-      incr idx ;
-      has_loop (add_obstacle x y)
-    ) |> Printf.printf "pt02: %i\n%!" ;
-  ) else if false then (
-    reachable' |> PosSet.to_list |> List.mapi (fun i (x,y) ->
-      Domain.spawn (fun () ->
-        Printf.printf "run %i\n%!" i ;
-        has_loop (add_obstacle x y)
-      )
-    ) |> List.map Domain.join |> List.map (Bool.to_int) |> List.fold_left (+) 0
-    |> Printf.printf "pt02: %i\n%!" ;
-  ) else (
-    reachable'
-    |> PosSet.to_list
-    |> List.mapi (fun i (x,y) -> (i,x,y))
-    |> chunked' 8
-    |> List.map (fun poss -> Domain.spawn (fun () -> poss|> List.fold_left (fun acc (i,x,y) -> 
-      Printf.printf "run %i\n%!" i ; acc + ((add_obstacle x y) |> has_loop  |> Bool.to_int)
-      ) 0))
-    |> List.map Domain.join |> List.fold_left (+) 0
-    |> Printf.printf "pt02: %i\n%!" ;
-  )
+type direction = Up | Down | Left | Right
+
+type tile = Free | Obstacle ;;
+
+
+module PosSet = Set.Make(struct
+  type t = int * int
+  let compare = compare
+end) ;;
+
+module PosSet' = Set.Make(struct
+  type t = int * int * direction
+  let compare = compare
+end) ;;
+
+
+let tile_of_char = function
+  | '.' -> Free
+  | '#' -> Obstacle
+  | '^' | 'v' | '<' | '>' -> Free
+  | _ -> failwith "invalid tile"
+;;
+
+
+let size = 130 ;;
+(* let size = 10 ;; *)
+
+
+let get map x y =
+  let offset = y * (size) + x in
+  map.(offset)
+;;
+
+let set map x y v =
+  let offset = y * (size) + x in
+  map.(offset) <- v
+;;
+
+
+
+let parse input =
+  let size = List.length input in
+  let map = Array.make (size*size) Free in
+  let player = ref (0, 0, Up) in
+  input |> List.iteri (fun y row ->
+    row |> List.iteri (fun x col ->
+      set map x y (tile_of_char col) ;
+      match (match col with '^' -> Some Up | 'v' -> Some Down | '<' -> Some Left | '>' -> Some Right | _ -> None) with
+        | None -> ()
+        | Some dir -> player := (x, y, dir)
+    )
+  ) ;
+  map, !player
+;;
+
+
+let next_pos_in_dir (x,y) = function
+  | Up    -> (x,y-1)
+  | Down  -> (x,y+1)
+  | Left  -> (x-1,y)
+  | Right -> (x+1,y)
+;;
+
+
+let turn = function
+  | Up    -> Right
+  | Right -> Down
+  | Down  -> Left
+  | Left  -> Up
+;;
+
+
+
+type state = Ok of (int*int*direction) | OffBounds | Loop ;;
+
+
+let valid_pos x y =
+  x >=0 && x < size && y >=0 && y < size
+;;
+
+
+let rec step seen get (x,y,dir) =
+  if not (valid_pos x y) then OffBounds else
+  let (x',y') = next_pos_in_dir (x,y) dir in
+  if not (valid_pos x' y') then OffBounds else
+  match get x' y' with
+  | Free -> (* can walk there *)
+    if PosSet'.mem (x',y', dir) seen then 
+      Loop
+    else
+      Ok (x',y',dir)
+  | Obstacle -> (* need to turn *)
+    step seen get (x,y,turn dir)
+;;
+
+
+
+let run get initial_player_pos =
+  let rec imp seen map player =
+    match step seen get player with
+      | OffBounds -> OffBounds, seen
+      | Ok pos -> imp (PosSet'.add pos seen) get pos
+      | Loop -> Loop, seen
+  in
+  imp (PosSet'.of_list [initial_player_pos]) get initial_player_pos
 ;;
 
 
 
 
+let add_obstacle get x y =
+  fun x' y' -> if x=x' && y=y' then
+    Obstacle
+  else
+    get x' y'
+;;
+
+
+
+let solve get player_pos =
+  (* Pt01 (and 02 prep) *)
+  let (_, reachable) = run get player_pos in
+  let reachable' = reachable |> PosSet'.to_list |> List.map (fun (x,y,_) -> (x,y)) |> PosSet.of_list in
+  reachable'
+  |> PosSet.cardinal
+  |> Printf.printf "pt01: %i\n%!" ;
+  let has_loop get =
+    match run get player_pos with
+      | Loop, _ -> true
+      | _, _ -> false
+  in
+  (* Pt02 *)
+  reachable'
+  |> PosSet.to_list
+  |> List.mapi (fun i (x,y) -> (i,x,y))
+  |> chunked' 8
+  |> List.map (fun poss -> Domain.spawn (fun () -> poss|> List.fold_left (fun acc (i,x,y) -> 
+    acc + ((add_obstacle get x y) |> has_loop |> Bool.to_int)
+    ) 0))
+  |> List.map Domain.join |> List.fold_left (+) 0
+  |> Printf.printf "pt02: %i\n%!" ;
+;;
+
+
+
 let () =
   let input = read_lines "input.txt" in
-  let map = input |> List.map get_chars |> parse in
-  solve map ;
+  let map, player = input |> List.map get_chars |> parse in
+  solve (get map) player;
