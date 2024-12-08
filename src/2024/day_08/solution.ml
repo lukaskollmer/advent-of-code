@@ -1,3 +1,9 @@
+module PosSet = Set.Make(struct 
+  type t = int*int
+  let compare = compare
+end)
+
+
 let read_lines filename =
   let file = open_in filename in
   let rec imp acc = 
@@ -8,44 +14,26 @@ let read_lines filename =
 ;;
 
 
-let get_chars s =
-  let rec imp l = function
-    | -1 -> l
-    | i  -> imp ((i, s.[i]) :: l) (i-1)
-  in
-  imp [] (String.length s - 1) |> List.map snd
-;;
-
-
-
-module PosSet = Set.Make(struct 
-  type t = int*int
-  let compare = compare
-end)
-
-let id x = x ;;
-
-type tile = Empty | Antenna of char ;;
-
-let tile_of_char = function
-  | '.' -> Empty
-  | c -> Antenna c
-;;
-
 
 let parse lines =
-  lines
-  |> List.map (fun line -> line |> List.map tile_of_char |> Array.of_list)
-  |> Array.of_list
+  lines |> List.fold_left (fun (y,s) row ->
+    let _, s = row |> String.fold_left (fun (x,s) -> function
+      | '.' -> (x+1,s)
+      | c -> (x+1, Seq.cons (x,y,c) s)
+    ) (0,s) in
+    (y+1,s)
+  ) (0,Seq.empty)
 ;;
 
 
 
-let dump_map map antinodes =
+let dump_map size antennas antinodes =
+  let map = Array.make_matrix size size '.' in
+  antennas |> Seq.iter (fun (x,y,c) -> map.(y).(x) <- c) ;
   let antinodes = List.of_seq antinodes in
   map |> Array.iteri (fun y row ->
     row |> Array.iteri (fun x tile ->
-      let c = if List.mem (x,y) antinodes then '#' else (match tile with Empty -> '.' | Antenna c -> c) in
+      let c = if List.mem (x,y) antinodes then '#' else tile in
       print_char c ;
     ) ;
     print_newline () ;
@@ -55,15 +43,6 @@ let dump_map map antinodes =
 
 let valid_pos size (x,y) =
   x >= 0 && y >= 0 && x < size && y < size
-;;
-
-
-let get_antennas map =
-  let size = Array.length map in
-  Seq.unfold (fun (x,y) ->
-    if y >= size then None else
-    Some ((x, y, map.(y).(x)), (if x = size-1 then (0,y+1) else (x+1,y)))
-  ) (0,0) |> Seq.filter (function (_, _, Empty) -> false | (_, _, Antenna _) -> true)
 ;;
 
 
@@ -91,26 +70,24 @@ let antinodes2 size p1 p2 =
 
 
 
-let run antinodes map =
-  let size = Array.length map in
+let run size antennas antinodes  =
   (* dump_map map Seq.empty ; *)
-  let antennas = get_antennas map in
   let antinodes = Seq.map_product (fun (x,y,c) (x',y',c') ->
       if c <> c' || (x,y) = (x',y') then None else
         Some (antinodes size (x,y) (x',y'))
     ) antennas antennas
-    |> Seq.filter_map id
-    |> Seq.flat_map id
-    |> Seq.filter (valid_pos size)
+    |> Seq.flat_map (function
+      | None -> Seq.empty
+      | Some seq -> seq |> Seq.filter (valid_pos size)
+    )
   in
-  (* dump_map map antinodes ; *)
+  (* dump_map size antennas antinodes ; *)
   antinodes |> PosSet.of_seq |> PosSet.cardinal
 ;;
 
 
 let () =
-  Printexc.record_backtrace true ;
-  let input = read_lines "input.txt" in
-  let map = input |> List.map get_chars |> parse in
-  map |> run antinodes1 |> Printf.printf "pt01: %i\n%!" ;
-  map |> run antinodes2 |> Printf.printf "pt01: %i\n%!" ;
+  let size, antennas = "input.txt" |> read_lines |> parse in
+  let run = run size antennas in
+  run antinodes1 |> Printf.printf "pt01: %i\n%!" ;
+  run antinodes2 |> Printf.printf "pt02: %i\n%!" ;
