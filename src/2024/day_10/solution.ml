@@ -81,7 +81,7 @@ let find_trails size map =
     if not (valid_pos x y) then acc else
     match cur with [] -> next_steps () | (x',y')::_ -> (
       if get x y <> get x' y' + 1 then acc else
-      if get x y = 9 then (List.rev ((x,y)::cur))::acc else
+      if get x y = 9 then (((x,y)::cur))::acc else
       next_steps ()
     )
   in
@@ -94,7 +94,7 @@ let find_trails size map =
 
 
 let score trails =
-  trails |> List.map (fun trail -> trail |> List.rev |> List.hd) |> PosSet.of_list |> PosSet.cardinal
+  trails |> List.map List.hd |> PosSet.of_list |> PosSet.cardinal
 ;;
 
 
