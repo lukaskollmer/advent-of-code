@@ -19,16 +19,6 @@ let read_lines filename =
 ;;
 
 
-let get_chars s =
-  let rec imp l = function
-    | -1 -> l
-    | i  -> imp ((i, s.[i]) :: l) (i-1)
-  in
-  imp [] (String.length s - 1) |> List.map snd
-;;
-
-
-
 let range a b =
   Seq.unfold (fun a -> if a >= b then None else Some (a,a+1)) a
 ;;
@@ -108,8 +98,9 @@ let () =
   Printexc.record_backtrace true ;
   let input = read_lines "input.txt" in
   let size, map = parse input in
-  let run f =
-    find_trails size map |> List.fold_left (fun acc trails -> acc + f trails) 0
+  let trails = find_trails size map in
+  let calc f =
+    trails |> List.fold_left (fun acc trails -> acc + f trails) 0
   in
-  run score |> Printf.printf "pt01: %i\n%!" ;
-  run rating |> Printf.printf "pt02: %i\n%!" ;
+  calc score |> Printf.printf "pt01: %i\n%!" ;
+  calc rating |> Printf.printf "pt02: %i\n%!" ;
