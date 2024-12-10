@@ -3,6 +3,11 @@ module PosSet = Set.Make(struct
   let compare = compare
 end)
 
+module PathSet = Set.Make(struct
+  type t = (int*int) list
+  let compare = compare
+end)
+
 
 let read_lines filename =
   let file = open_in filename in
@@ -23,21 +28,10 @@ let get_chars s =
 ;;
 
 
-let id x = x ;;
-
-let get size map x y =
-  let offset = y * size + x in
-  map.(offset)
-;;
-
-let set size map x y v =
-  let offset = y * size + x in
-  map.(offset) <- v
-;;
-
 
 let range a b =
   Seq.unfold (fun a -> if a >= b then None else Some (a,a+1)) a
+;;
 
 
 
@@ -62,18 +56,20 @@ let next_in_dir x y = function
   | Right -> (x+1,y)
 ;;
 
-let valid_pos size x y =
-  x >= 0 && x < size && y >= 0 && y < size
-;;
 
-let pt01 size map =
-  let get = get size map in
-  let valid_pos = valid_pos size in
+
+
+let find_trails size map =
+  let get x y =
+    let offset = y * size + x in
+    map.(offset)
+  in
+  let valid_pos x y =
+    x >= 0 && x < size && y >= 0 && y < size
+  in
   let starting_points = Seq.product (range 0 size) (range 0 size)
     |> Seq.filter (fun (x,y) -> get x y = 0)
   in
-  (* Printf.printf "starting_points:\n%!" ; *)
-  (* starting_points |> Seq.iter (fun (x,y) -> Printf.printf "- [%02i, %02i]\n%!" x y) ; *)
   let rec find_trails cur acc x y =
     let next_steps () =
       [Up; Down; Left; Right]
@@ -89,26 +85,21 @@ let pt01 size map =
       next_steps ()
     )
   in
-  let trails_by_head = starting_points
+  starting_points
     |> Seq.map (fun (x,y) -> find_trails [] [] x y)
     |> List.of_seq
     |> List.filter ((<>) [])
-  in
-  (* Printf.printf "#trails: %i\n%!" (List.length trails_by_head) ;
-  trails_by_head |> List.iteri (fun i l ->
-    Printf.printf "- [%i]:\n%!" i ;
-    l |> List.iteri (fun i l ->
-      Printf.printf "  - [%i]:" i ;
-      l |> List.iter (fun (x,y) -> Printf.printf "(%i,%i)=%i; " x y (get x y)) ;
-      print_newline () ;
-    ) ;
-  ) ;
-  Printf.printf "#trailheads: %i\n%!" (List.length trails_by_head) ; *)
-  (* trails |> List.fold_left (fun acc trails -> acc + List.length trails) 0 *)
-  trails_by_head |> List.fold_left (fun acc trails ->
-    let x = trails |> List.map (fun trail -> trail |> List.rev |> List.hd) |> PosSet.of_list |> PosSet.cardinal in
-    acc + x
-  ) 0
+;;
+
+
+
+let score trails =
+  trails |> List.map (fun trail -> trail |> List.rev |> List.hd) |> PosSet.of_list |> PosSet.cardinal
+;;
+
+
+let rating trails =
+  trails |> PathSet.of_list |> PathSet.cardinal
 ;;
 
 
@@ -117,4 +108,8 @@ let () =
   Printexc.record_backtrace true ;
   let input = read_lines "input.txt" in
   let size, map = parse input in
-  pt01 size map |> Printf.printf "pt01: %i\n%!" ;
+  let run f =
+    find_trails size map |> List.fold_left (fun acc trails -> acc + f trails) 0
+  in
+  run score |> Printf.printf "pt01: %i\n%!" ;
+  run rating |> Printf.printf "pt02: %i\n%!" ;
