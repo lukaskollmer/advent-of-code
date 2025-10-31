@@ -12,3 +12,5 @@
 *.o
 *.cmx
 *.out
+
+.DS_Store

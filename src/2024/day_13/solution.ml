@@ -10,7 +10,6 @@ let lcm m n =
 ;;
 
 
-
 module Rat = struct
   type t = int * int
 

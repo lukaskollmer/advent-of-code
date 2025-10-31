@@ -29,6 +29,11 @@ let range a b =
 ;;
 
 
+let range_from a =
+  Seq.unfold (fun a -> Some (a,a+1)) a
+;;
+
+
 let get map x y =
   map.(y).(x)
 ;;
@@ -53,6 +58,9 @@ let next_in_dir (x,y) = function
   | Right -> (x+1,y)
 ;;
 
+
+
+let third (_,_,c) = c ;;
 
 
 let find_regions1 size map =
@@ -85,7 +93,7 @@ let find_regions1 size map =
   in
   (* Printf.printf "#regions: %i\n%!" (List.length regions) ;
   dump_regions regions ; *)
-  regions
+  regions |> List.map (fun region -> region |> List.hd |> third, region |> List.map (fun (x,y,_) -> (x,y)))
 ;;
 
 
@@ -107,15 +115,129 @@ let is_neighbour p1 p2 =
 ;;
 
 let count_neighbours (x,y) region =
-  region |> count_where (fun (x',y',_) -> is_neighbour (x,y) (x',y'))
+  region |> count_where (fun (x',y') -> is_neighbour (x,y) (x',y'))
 ;;
 
 let perimeter region =
-  region |> List.fold_left (fun acc (x,y,_) -> acc + (4 - count_neighbours (x,y) region)) 0
+  region |> List.fold_left (fun acc (x,y) -> acc + (4 - count_neighbours (x,y) region)) 0
 ;;
 
-let price region =
+let price1 region =
   (area region) * (perimeter region)
+;;
+
+let all_pos (x,y,max_x,max_y) =
+  Seq.product (range x (max_x+1)) (range y (max_y+1)) |> PosSet.of_seq
+;;
+
+let sides region =
+  let outer_positions = region |> List.filter_map (fun (x,y) -> if count_neighbours (x,y) region < 4 then Some (x,y) else None) in
+  let min_x, min_y, max_x, max_y = outer_positions |> List.fold_left (fun (min_x, min_y, max_x, max_y) (x,y) ->
+    min x min_x, min y min_y, max x max_x, max y max_y
+  ) (let (x,y) = List.hd outer_positions in (x,y,x,y)) in
+  (* outer_positions |> List.fold_left (fun acc (x,y) -> acc + if (not (List.mem (next_in_dir (x,y) Up) outer_positions)) then 1 else 0) 0 *)
+  let rec rects seen acc = function
+    | [] -> acc
+    | (x,y)::rest -> (
+      if PosSet.mem (x,y) seen then rects seen acc rest else
+        let max_x = range_from x |> Seq.find (fun x' -> not (List.mem (x',y) outer_positions)) |> Option.get |> (+) (-1) in
+        (* let max_y = range_from y |> Seq.find_map (fun y' ->
+          if List.mem (x,y') outer_positions then None else Some (
+            (* we have found the first y that is "below" the outer poss reachable by going directly down from x *)
+            let y' = y' - 1 in
+            range_from y |> Seq.find (fun y' -> range )
+          )) *)
+        let max_y = range_from y |> Seq.find (fun y' ->
+          range x (max_x + 1) |> Seq.for_all (fun x -> List.mem (x,y') outer_positions) |> not
+        ) |> Option.get |> (+) (-1) in
+        rects (PosSet.add_seq (Seq.product (range x (max_x+1)) (range y (max_y+1))) seen) ((x,y,max_x,max_y)::acc) rest
+    )
+  in
+  let rects = rects PosSet.empty [] outer_positions in
+  (* Printf.printf *)
+  12
+;;
+
+(* X
+  XXX
+   X
+*)
+
+
+
+
+let sides region =
+  let outer_positions = region |> List.filter_map (fun (x,y) -> if count_neighbours (x,y) region < 4 then Some (x,y) else None) |> PosSet.of_list in
+  let is_corner pos = (* is outer corner? (ie, is a piece which is surrounded by empty tiles at 3 sides)*)
+    let has_neighbour_at dir =
+      List.mem (next_in_dir pos dir) region
+    in
+    (* count_neighbours pos region = 1 || count_neighbours pos region = 3 *)
+    let is1 = has_neighbour_at in 12
+  in
+  (* PosSet.fold (fun pos acc -> acc + if is_corner pos then 1 else 0) outer_positions 4 *)
+  12
+;;
+
+
+
+
+
+type axis = Horizontal | Vertical ;;
+
+let sides size region =
+  let edge_positions = region |> List.filter_map (fun (x,y) -> if count_neighbours (x,y) region < 4 then Some (x,y) else None) |> PosSet.of_list in
+  let has_neighbour_at pos dir =
+    List.mem (next_in_dir pos dir) region
+  in
+  let outer_edge_positions = edge_positions |> PosSet.filter (fun (x,y) ->
+    x = 0 || y = 0 || x = size-1 || y = size-1 || (
+      
+    )
+  ) in
+  let min_x, min_y, max_x, max_y = edge_positions |> List.fold_left (fun (min_x, min_y, max_x, max_y) (x,y) ->
+    min x min_x, min y min_y, max x max_x, max y max_y
+  ) (let (x,y) = List.hd edge_positions in (x,y,x,y))
+  in
+  let has_h_neighbour (x,y) =
+    has_neighbour_at Left || has_neighbour_at
+  in
+  let h_sides_by_y = (
+    let h = Hashtbl.create 12 in
+    edge_positions |> List.iter (fun (x,y) ->
+      let positions = Hashtbl.find_opt h y |> Option.value ~default:[] in
+      Hashtbl.add h y ((x,y)::positions) ;
+    ) ;
+    h
+  ) in
+  let rec rects seen acc = function
+    | [] -> acc
+    | (x,y)::rest -> (
+      if PosSet.mem (x,y) seen then rects seen acc rest else
+        let max_x = range_from x |> Seq.find (fun x' -> not (List.mem (x',y) edge_positions)) |> Option.get |> (+) (-1) in
+        (* let max_y = range_from y |> Seq.find_map (fun y' ->
+          if List.mem (x,y') outer_positions then None else Some (
+            (* we have found the first y that is "below" the outer poss reachable by going directly down from x *)
+            let y' = y' - 1 in
+            range_from y |> Seq.find (fun y' -> range )
+          )) *)
+        let max_y = range_from y |> Seq.find (fun y' ->
+          range x (max_x + 1) |> Seq.for_all (fun x -> List.mem (x,y') outer_positions) |> not
+        ) |> Option.get |> (+) (-1) in
+        rects (PosSet.add_seq (Seq.product (range x (max_x+1)) (range y (max_y+1))) seen) ((x,y,max_x,max_y)::acc) rest
+    )
+  in
+  let rects = rects PosSet.empty [] outer_positions in
+  (* Printf.printf *)
+  12
+;;
+
+
+
+
+
+let price2 region =
+  (area region) * (sides region)
 ;;
 
 (* let find_regions2 map =
@@ -131,14 +253,11 @@ let price region =
 ;; *)
 
 
-let dump_regions (regions: (int*int*char) list list): unit =
-  regions |> List.iteri (fun idx region ->
-    let _, _, c = List.hd region in
+let dump_regions regions =
+  regions |> List.iteri (fun idx (c,region) ->
     Printf.printf "- [%c]: " c ;
-    region |> List.iter (fun (x,y,_) -> Printf.printf "(%i, %i); " x y) ;
-    let area = area region in
-    let perimeter = perimeter region in
-    Printf.printf "--> (area: %i, perimeter: %i) -> price: %i\n%!" area perimeter (area * perimeter) ;
+    region |> List.iter (fun (x,y) -> Printf.printf "(%i, %i); " x y) ;
+    Printf.printf "\n  --> (area: %i, perimeter: %i, sides: %i) -> price1: %i; price2: %i\n%!" (area region) (perimeter region) (sides region) (price1 region) (price2 region) ;
   )
 ;;
 
@@ -149,5 +268,6 @@ let () =
   let regions = find_regions1 size map in
   Printf.printf "#regions: %i\n%!" (List.length regions) ;
   dump_regions regions ;
-  regions |> List.fold_left (fun acc r -> acc + price r) 0 |> Printf.printf "pt01: %i\n%!" ;
+  regions |> List.fold_left (fun acc (_,r) -> acc + price1 r) 0 |> Printf.printf "pt01: %i\n%!" ;
+  regions |> List.fold_left (fun acc (_,r) -> acc + price2 r) 0 |> Printf.printf "pt02: %i\n%!" ;
   ()
