@@ -64,11 +64,15 @@ let copy m =
 ;;
 
 
-let run m limit =
+let run' m limit =
   let (h, w) = dims m in
   let rec imp acc = function
-    | 0 -> acc
-    | limit ->
+    | Some 0 -> acc
+    | _ ->
+      let () = match acc with 
+        | [] -> () ;
+        | pos::_ -> pos |> List.iter (fun (x,y) -> m.(y).(x) <- Free)
+      in
       let acc' = range 0 h |> Seq.fold_left (fun acc y ->
         range 0 w |> Seq.fold_left (fun acc x ->
           match m.(y).(x) with
@@ -78,25 +82,18 @@ let run m limit =
               let num_adj = adj_pos |> count_where (fun (x,y) -> m.(y).(x) = Roll) in
               if num_adj < 4 then (x,y)::acc else acc
         ) acc
-      ) acc in
-      acc' |> List.iter (fun (x,y) -> m.(y).(x) <- Free) ;
-      imp acc' (if acc' = acc then 0 else (limit-1))
+      ) [] in
+      imp (acc'::acc) (if acc' = [] then Some 0 else limit |> Option.map ((+) (-1)))
   in
   imp [] limit
 ;;
 
 
-let pt01 m =
-  run m 1 |> List.length
+let run m limit =
+  run' m limit |> List.fold_left (fun acc l -> acc + List.length l) 0
 ;;
-
-let pt02 m =
-  run m Int.max_int |> List.length
-;;
-
-
 
 let () = 
   let m = read_lines "input.txt" |> parse_input in
-  m |> copy |> pt01 |> Printf.printf "Pt01: %i\n%!" ;
-  m |> copy |> pt02 |> Printf.printf "Pt02: %i\n%!" ;
+  run m (Some 1) |> Printf.printf "Pt01: %i\n%!" ;
+  run m None     |> Printf.printf "Pt02: %i\n%!" ;
