@@ -29,7 +29,7 @@ let cmp_of_int x =
 
 module Float = struct
   include Float
-  let to_float x = x ;;
+  let to_float x = x
 end
 
 module Int = struct
@@ -45,8 +45,9 @@ end
 
 
 module Coord = struct
-  module Elt = Float ;;
+  module Elt = Float ;; (* Can be switched between Int and Float *)
   type t = Elt.t Triple.t
+
   let compare (a: t) (b: t) =
     let (a1,a2,a3) = a in
     let (b1,b2,b3) = b in
@@ -57,6 +58,8 @@ module Coord = struct
           | x -> x
       )
       | x -> x
+  ;;
+  
   let equal (a: t) (b: t) =
     let (a1,a2,a3) = a in
     let (b1,b2,b3) = b in
@@ -76,12 +79,14 @@ module CoordPair = struct
     let ((a1,a2,a3), (a4,a5,a6)) = a in
     let ((b1,b2,b3), (b4,b5,b6)) = b in
     Coord.Elt.(equal a1 b1 && equal a2 b2 && equal a3 b3 && equal a4 b4 && equal a5 b5 && equal a6 b6)
+  ;;
   
-    let hash (a: t) =
+  let hash (a: t) =
     let ((a1,a2,a3), (a4,a5,a6)) = a in
     Coord.Elt.(hash a1 lxor hash a2 lxor hash a3 lxor hash a4 lxor hash a5 lxor hash a6)
+  ;;
   
-    let compare (a: t) (b: t) =
+  let compare (a: t) (b: t) =
     let ((a1,a2,a3), (a4,a5,a6)) = a in
     let ((b1,b2,b3), (b4,b5,b6)) = b in
     let compare = Coord.Elt.compare in
@@ -109,7 +114,6 @@ end
 
 module CoordSet = Set.Make(Coord) ;;
 module CoordSetSet = Set.Make(CoordSet) ;;
-module CoordPairSet = Set.Make(CoordPair) ;;
 
 
 let parse_input lines =
@@ -194,6 +198,7 @@ end
 
 
 let combinations input =
+  let module CoordPairSet = Set.Make(CoordPair) in
   let module T = Tree(struct
     type t = CoordPair.t * float
     let compare (p1, d1) (p2, d2) =
