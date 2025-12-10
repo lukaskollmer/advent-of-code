@@ -1,4 +1,4 @@
-(* ocamlopt -g -O3 -I +unix unix.cmxa solution.ml *)
+(* opam exec -- ocamlfind ocamlopt -package Z3 -linkpkg -O3 solution.ml *)
 
 let read_lines filename =
   let file = open_in filename in
@@ -8,14 +8,6 @@ let read_lines filename =
   in
   imp []
 ;;
-
-(* let measure l f =
-  let start = Unix.gettimeofday () in
-  let result = f () in
-  let stop = Unix.gettimeofday () in
-  Printf.printf "[MEASURE] %s took %f sec\n%!" l (stop -. start) ;
-  result
-;; *)
 
 
 type indicator_light = Off | On ;;
@@ -44,17 +36,6 @@ let parse_input lines =
   lines |> List.map parse_line
 ;;
 
-
-let join s l =
-  let rec imp acc = function
-    | [] -> acc
-    | x::xs -> imp (acc ^ s ^ x) xs
-  in
-  match l with
-    | [] -> ""
-    | [x] -> x
-    | x::xs -> imp x xs
-;;
 
 
 let chunked n l =
@@ -110,10 +91,47 @@ let pt01 (input: (indicator_light list * int list list * int list) list) =
 ;;
 
 
-let pt02 input = 12 ;;
+let pt02 (input: (indicator_light list * int list list * int list) list) =
+  let run machine =
+    let (_, buttons, joltages) = machine in
+    let ctx = Z3.mk_context [("model", "true")] in
+    let vars = buttons |> List.mapi (fun i _ ->
+      Z3.Arithmetic.Integer.mk_const_s ctx ("v" ^ string_of_int i)
+    ) in
+    let opt = Z3.Optimize.mk_opt ctx in
+    let exprs = joltages |> List.mapi (fun iJ j ->
+      let add = buttons
+        |> List.mapi (fun i x -> (i,x))
+        |> List.fold_left (fun acc (iB,b) ->
+          if List.mem iJ b then
+            (List.nth vars iB)::acc
+          else
+            acc
+        ) [] in
+        let add = Z3.Arithmetic.mk_add ctx add in
+        Z3.Boolean.mk_eq ctx add (Z3.Arithmetic.Integer.mk_numeral_i ctx j)
+    ) in
+    Z3.Optimize.add opt exprs ;
+    vars |> List.map (fun v ->
+      Z3.Arithmetic.mk_ge ctx v (Z3.Arithmetic.Integer.mk_numeral_i ctx 0)
+    ) |> Z3.Optimize.add opt ;
+    let _ = Z3.Optimize.minimize opt (Z3.Arithmetic.mk_add ctx vars) in
+    let status = Z3.Optimize.check opt in
+    assert (status = Z3.Solver.SATISFIABLE) ;
+    let model = Z3.Optimize.get_model opt |> Option.get in
+    vars
+      |> List.map (fun v -> Z3.Model.eval model v true |> Option.get |> Z3.Arithmetic.Integer.numeral_to_string |> int_of_string)
+      |> List.fold_left (+) 0
+  in
+  input
+    |> chunked'
+    |> List.map (fun machines ->
+      Domain.spawn (fun () -> machines |> List.fold_left (fun acc m -> acc + (run m)) 0)
+    )
+    |> List.fold_left (fun acc d -> acc + Domain.join d) 0
+;;
 
 let () =
-  Printexc.record_backtrace true ;
   let input = read_lines "input.txt" |> parse_input in
   input |> pt01 |> Printf.printf "Pt01: %i\n%!" ;
-  (* input |> pt02 |> Printf.printf "Pt02: %i\n%!" ; *)
+  input |> pt02 |> Printf.printf "Pt02: %i\n%!" ;
