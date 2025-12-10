@@ -267,10 +267,10 @@ let pt02 combinations =
           let new_circuit = List.fold_left (fun acc circuit -> CoordSet.union acc circuit) CoordSet.empty matches in
           let new_circuit = CoordSet.(new_circuit |> add a |> add b) in
           let circuits = CoordSetSet.add new_circuit circuits in
-           if CoordSetSet.cardinal circuits = 1 then
-            circuits, Some (Coord.Elt.mul (Triple.fst a) (Triple.fst b))
+            if CoordSetSet.cardinal circuits = 1 then
+              circuits, Some (Coord.Elt.mul (Triple.fst a) (Triple.fst b))
            else
-            circuits, None
+              circuits, None
   ) (circuits, None) in
   result |> Option.get
 ;;
