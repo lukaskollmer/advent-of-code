@@ -68,14 +68,13 @@ let pt01 (input: (indicator_light list * int list list * int list) list) =
     let max = (Int.shift_left 1 num_buttons) - 1 in
     range 0 (max+1) |> Seq.fold_left (fun acc mask ->
       let state = Array.make num_lights Off in
-      let num_on = range 0 num_buttons |> Seq.fold_left (fun acc i ->
+      let (num_on, _) = buttons |> List.fold_left (fun (acc,i) button ->
         let ison = Int.logand mask (Int.shift_left 1 i) <> 0 in
         if ison then (
-          let button = List.nth buttons i in
-          button |> List.iter (fun i -> toggle state i) ;
-          acc + 1
-        ) else acc
-      ) 0 in
+          button |> List.iter (toggle state) ;
+          (acc+1), (i+1)
+        ) else acc, (i+1)
+      ) (0,0) in
       if Array.equal (=) state lights then (
         Int.min acc num_on
       ) else
@@ -133,5 +132,5 @@ let pt02 (input: (indicator_light list * int list list * int list) list) =
 
 let () =
   let input = read_lines "input.txt" |> parse_input in
-  input |> pt01 |> Printf.printf "Pt01: %i\n%!" ;
+  (* input |> pt01 |> Printf.printf "Pt01: %i\n%!" ; *)
   input |> pt02 |> Printf.printf "Pt02: %i\n%!" ;
